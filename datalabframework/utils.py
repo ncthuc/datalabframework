@@ -164,10 +164,12 @@ def repo_data():
 
 
 def import_env(env_file='.env'):
-    if os.path.exists(env_file):
-        with open(env_file) as f:
-            for l in f:
-                d = l.strip().split('=')
-                # thuc.nc: fix bug on emply line of .env file
-                if d and d[0]:
-                    os.environ[d[0]] = d[1]
+    from dotenv import load_dotenv
+    load_dotenv(env_file)
+    # if os.path.exists(env_file):
+    #     with open(env_file) as f:
+    #         for l in f:
+    #             d = l.strip().split('=')
+    #             # thuc.nc: fix bug on emply line of .env file
+    #             if d and d[0]:
+    #                 os.environ[d[0]] = d[1]

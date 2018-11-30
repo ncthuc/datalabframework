@@ -47,7 +47,8 @@ install_requires = [
     'python-dateutil',
     'kafka-python',
     'pandas',
-    'numpy'
+    'numpy',
+    'dotenv'
 ]
 
 try:
