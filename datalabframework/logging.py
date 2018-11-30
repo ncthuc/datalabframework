@@ -3,26 +3,22 @@ import logging
 try:
     from kafka import KafkaProducer
 except:
-    KafkaProducer=None
+    KafkaProducer = None
 
-import socket
 import getpass
 import datetime
-import traceback as tb
 import json
 
 import sys
-import os
 from numbers import Number
 
-#import a few help methods
+# import a few help methods
 from . import project
-from . import notebook
 from . import params
-from . import utils
 
-#logging object is a singleton
+# logging object is a singleton
 _logger = None
+
 
 def getLogger():
     global _logger
@@ -30,40 +26,45 @@ def getLogger():
         init()
     return _logger
 
+
 def extra_attributes():
-    d =  {
-        'dlf_session' : project.repository()['hash'],
-        'dlf_username' : getpass.getuser(),
-        'dlf_filename' : project.filename(),
+    d = {
+        'dlf_session': project.repository()['hash'],
+        'dlf_username': getpass.getuser(),
+        'dlf_filename': project.filename(),
         'dlf_repo_name': project.repository()['name']
-        }
+    }
     return d
+
 
 class LoggerAdapter(logging.LoggerAdapter):
     def __init__(self, logger, extra):
         super().__init__(logger, extra)
 
     def process(self, msg, kwargs):
-        kw = {'dlf_type':'message'}
+        kw = {'dlf_type': 'message'}
         kw.update(self.extra)
         kw.update(kwargs.get('extra', {}))
         kwargs['extra'] = kw
         return msg, kwargs
+
 
 def _json_default(obj):
     """
     Coerce everything to strings.
     All objects representing time get output as ISO8601.
     """
-    if  isinstance(obj, datetime.datetime) or \
-        isinstance(obj,datetime.date) or      \
-        isinstance(obj,datetime.time):
+    if isinstance(obj, datetime.datetime) or \
+            isinstance(obj, datetime.date) or \
+            isinstance(obj, datetime.time):
         return obj.isoformat()
     elif isinstance(obj, Number):
         return obj
     else:
         return str(obj)
 
+
+# noinspection PyUnusedLocal
 class LogstashFormatter(logging.Formatter):
     """
     A custom formatter to prepare logs to be
@@ -98,9 +99,10 @@ class LogstashFormatter(logging.Formatter):
             'filename': logr.dlf_filename,
             'msg': msg,
             'type': logr.dlf_type
-            }
+        }
 
         return json.dumps(log_record, default=_json_default)
+
 
 class KafkaLoggingHandler(logging.Handler):
 
@@ -122,6 +124,7 @@ class KafkaLoggingHandler(logging.Handler):
             self.producer.close()
         logging.Handler.close(self)
 
+
 loggingLevels = {
     'debug': logging.DEBUG,
     'info': logging.INFO,
@@ -129,6 +132,7 @@ loggingLevels = {
     'error': logging.ERROR,
     'fatal': logging.FATAL
 }
+
 
 def init():
     global _logger
@@ -142,7 +146,6 @@ def init():
 
     p = md['loggers'].get('kafka')
     if p and p['enable'] and KafkaProducer:
-
         level = loggingLevels.get(p.get('severity', 'info'))
         topic = p.get('topic', 'dlf')
         hosts = p.get('hosts')
@@ -157,13 +160,13 @@ def init():
         handlerKafka.setFormatter(formatterLogstash)
         logger.addHandler(handlerKafka)
 
-
     p = md['loggers'].get('stream')
     if p and p['enable']:
         level = loggingLevels.get(p.get('severity', 'info'))
 
         # create console handler and set level to debug
-        formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(dlf_session)s - %(dlf_repo_name)s - %(dlf_username)s - %(dlf_filename)s - %(dlf_type)s - %(message)s')
+        formatter = logging.Formatter(
+            '%(asctime)s - %(levelname)s - %(dlf_session)s - %(dlf_repo_name)s - %(dlf_username)s - %(dlf_filename)s - %(dlf_type)s - %(message)s')
         handler = logging.StreamHandler(sys.stdout)
         handler.setLevel(level)
         handler.setFormatter(formatter)

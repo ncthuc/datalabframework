@@ -1,30 +1,47 @@
 import os
-import sys
 import glob
 
 from textwrap import dedent
 
-from ..utils import pretty_print
-from .application import DatalabframeworkApp
-
 import nbformat
 from nbconvert.preprocessors import ExecutePreprocessor
 
-from traitlets.config.configurable import Configurable
+from .application import DatalabframeworkApp
 
 from traitlets import (
-    Bool, Unicode, Int, List, Dict
+    Unicode, List, Dict
 )
 
-class DlfRunApp(DatalabframeworkApp):
 
+def preprocess_cell(self, cell, resources, cell_index):
+    """
+    Executes a single code cell. See base.py for details.
+    To execute all cells see :meth:`preprocess`.
+    """
+    if cell.cell_type != 'code':
+        return cell, resources
+
+    print('Input cell: {}'.format(cell['source']))
+    reply, outputs = self.run_cell(cell, cell_index)
+    print('Output: {}'.format(outputs))
+    cell.outputs = outputs
+
+    if not self.allow_errors:
+        for out in outputs:
+            if out.output_type == 'error':
+                raise CellExecutionError.from_cell_and_msg(cell, out)
+        if (reply is not None) and reply['content']['status'] == 'error':
+            raise CellExecutionError.from_cell_and_msg(cell, reply['content'])
+    return cell, resources
+
+class DlfRunApp(DatalabframeworkApp):
     name = Unicode(u'datalabframework-run')
     description = "Executing a datalabframework notebook"
 
     classes = List([ExecutePreprocessor])
 
     config_file = Unicode(u'',
-                   help="Load this config file").tag(config=True)
+                          help="Load this config file").tag(config=True)
 
     profile = Unicode(u'default', help="Execute a specific metadata profile").tag(config=True)
 
@@ -32,13 +49,13 @@ class DlfRunApp(DatalabframeworkApp):
                      Wildcards are supported.
                      Filenames passed positionally will be added to the list.
                      """
-    ).tag(config=True)
+                     ).tag(config=True)
 
     aliases = Dict(dict(profile='DlfRunApp.profile',
                         timeout='ExecutePreprocessor.timeout',
                         log_level='DlfRunApp.log_level'))
 
-    flags = Dict(dict(debug=({'DlfRunApp':{'log_level':10}}, "Set loglevel to DEBUG")))
+    flags = Dict(dict(debug=({'DlfRunApp': {'log_level': 10}}, "Set loglevel to DEBUG")))
 
     def init_preprocessor(self):
         self.ep = ExecutePreprocessor(config=self.config)
@@ -61,12 +78,12 @@ class DlfRunApp(DatalabframeworkApp):
                 self.log.warning("pattern %r matched no files", pattern)
 
             for filename in globbed_files:
-                if not filename in filenames:
+                if filename not in filenames:
                     filenames.append(filename)
         self.notebooks = filenames
 
-    def notebook_statistics(self,data):
-        #todo: check for filetype
+    def notebook_statistics(self, data):
+        # todo: check for filetype
         stats = {'cells': len(data['cells'])}
 
         h = dict()
@@ -77,21 +94,20 @@ class DlfRunApp(DatalabframeworkApp):
 
         error = {'ename': None, 'evalue': None}
         for c in data['cells']:
-            if c['cell_type']=='code':
+            if c['cell_type'] == 'code':
                 for o in c['outputs']:
                     if o['output_type'] == 'error':
                         error = {'ename': o['ename'], 'evalue': o['evalue']}
                         break
         stats.update(error)
 
-        count =0
+        count = 0
         for c in data['cells']:
-            if c['cell_type']=='code' and c['execution_count']:
-                count +=1
+            if c['cell_type'] == 'code' and c['execution_count']:
+                count += 1
         stats.update({'executed': count})
 
         return stats
-
 
     def initialize(self, argv=None):
         self.parse_command_line(argv)
@@ -100,9 +116,9 @@ class DlfRunApp(DatalabframeworkApp):
         self.init_notebooks()
         self.init_preprocessor()
 
-    def run_single_notebook(self,filename):
+    def run_single_notebook(self, filename):
         nb = nbformat.read(filename, as_version=4)
-        filename_tuple =  os.path.split(filename)
+        filename_tuple = os.path.split(filename)
 
         fullpath_filename = os.path.join(os.getcwd(), *filename_tuple)
         cwd = os.path.dirname(fullpath_filename)
@@ -110,23 +126,23 @@ class DlfRunApp(DatalabframeworkApp):
             # added by dlf-run
             import datalabframework as dlf
             dlf.project.Config('{}', '{}', '{}')
-            """.format(cwd,fullpath_filename, self.profile))
+            """.format(cwd, fullpath_filename, self.profile))
 
         nc = nbformat.v4.new_code_cell(init_str)
         nb['cells'].insert(0, nc)
 
-        resources ={}
+        resources = {}
         resources['metadata'] = {'path': os.getcwd()}
 
-        #print('running {} (cwd={})'.format(fullpath_filename, cwd))
         (nb_out, resources_out) = self.ep.preprocess(nb, resources)
-        #print(self.notebook_statistics(nb_out))
 
     def start(self):
         for notebook_filename in self.notebooks:
             self.run_single_notebook(notebook_filename)
 
+
 def main():
+    ExecutePreprocessor.preprocess_cell = preprocess_cell
     app = DlfRunApp()
     app.initialize()
     app.start()
